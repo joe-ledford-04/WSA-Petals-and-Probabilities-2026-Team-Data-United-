@@ -1,0 +1,243 @@
+---
+  title: "Team Data_United's Cherry Blossoms Prediction"
+author: "Liz Conley, "
+date: "2026-02-03"
+output: pdf_document
+lang: en-US
+format:
+  html:
+  embed-resources: true
+---
+#Setup
+```{r}
+#| label: setup
+#| include: false
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, error = FALSE, 
+                      message = FALSE,
+                      fig.align = 'center',
+                      out.width = '80%')
+```
+
+#Libraries
+```{r}
+#| eval: false
+library(tidyverse)
+library(httr2)
+library(jsonlite)
+library("knitr")
+library("kableExtra")
+library("tidyverse")
+library("plotly")
+library("rnoaa")
+library("rnpn")
+library("rvest")
+```
+
+#Historic Data
+```{r}
+cherry <- read.csv("C:/Users/ajcon/Documents/GMU Semesters/Spring 26/Stat 490/Cherry Blossoms/peak-bloom-prediction-lc/data/washingtondc.csv") |> 
+  bind_rows(read.csv("C:/Users/ajcon/Documents/GMU Semesters/Spring 26/Stat 490/Cherry Blossoms/peak-bloom-prediction-lc/data/liestal.csv")) |> 
+  bind_rows(read.csv("C:/Users/ajcon/Documents/GMU Semesters/Spring 26/Stat 490/Cherry Blossoms/peak-bloom-prediction-lc/data/kyoto.csv")) |> 
+  bind_rows(read.csv("C:/Users/ajcon/Documents/GMU Semesters/Spring 26/Stat 490/Cherry Blossoms/peak-bloom-prediction-lc/data/vancouver.csv")) |> 
+  bind_rows(read.csv("C:/Users/ajcon/Documents/GMU Semesters/Spring 26/Stat 490/Cherry Blossoms/peak-bloom-prediction-lc/data/nyc.csv"))
+```
+
+#Additional Data from NOAA
+```{r}
+#| echo: false
+NOAA_WEB_API_TOKEN <- Sys.getenv("TDhcJeLNXKlnGaNsjwnNkLhwMcdfZJEq")
+NOAA_API_BASE_URL <- "https://www.ncei.noaa.gov/cdo-web/api/v2/data"
+stations <- c(
+  "washingtondc" = "GHCND:USW00013743",
+  "liestal"      = "GHCND:SZ000001940",
+  "kyoto"        = "GHCND:JA000047759",
+  "vancouver"    = "GHCND:CA001108395",
+  "newyorkcity"  = "GHCND:USW00014732"
+  )
+```
+
+#Additional Data from AccuWeather
+```{r}
+AccuWeather_feb <- read_csv("C:/Users/ajcon/Documents/GMU Semesters/Spring 26/Stat 490/Cherry Blossoms/QuetletCSVs/dcPredictedTemps_February_20Thru28.csv") %>%
+  mutate(year = year <- rep(2026, times = 9)) %>%
+  mutate(date = date <- seq(as.Date("2026-02-20"), as.Date("2026-02-28"), "days")) %>%
+  mutate(tmax = (Max - 32)*(5/9)) %>%
+  mutate(tmin = (Min - 32)*(5/9)) %>%
+  mutate(temp = (Avg - 32)*(5/9)) %>%
+  select(year, date, tmin, tmax, temp)
+  
+
+AccuWeather_mar <- read_csv("C:/Users/ajcon/Documents/GMU Semesters/Spring 26/Stat 490/Cherry Blossoms/QuetletCSVs/dcPredictedTemps_March_2026.csv") %>%
+  mutate(year = year <- rep(2026, times = 31)) %>%
+  mutate(date = date <- seq(as.Date("2026-03-01"), as.Date("2026-03-31"), "days")) %>%
+  mutate(tmax = (Max - 32)*(5/9)) %>%
+  mutate(tmin = (Min - 32)*(5/9)) %>%
+  mutate(temp = (Avg - 32)*(5/9)) %>%
+  select(year, date, tmin, tmax, temp)
+
+AccuWeather_apr <- data.frame(
+  year = year <- rep(2026, times = 30),
+  date = date <- seq(as.Date("2026-04-01"), as.Date("2026-04-30"), "days"),
+  tmax = tmax <- c(20, 13, 15, 14, 13, 21, 19, 16, 16, 15, 16, 15, 16, 17, 16, 19, 24, 24, 18, 24, 20, 18, 17, 19, 20, 20, 23, 24, 25, 26),
+  tmin = tmin <- c(8, 6, 7, 5, 5, 4, 2, 4, 4, 2, 3, 4, 4, 4, 8, 13, 11, 11, 9, 5, 5, 5, 10, 6, 7, 13, 14, 13, 15, 8),
+  temp = temp <- (tmax + tmin) / 2)
+
+AccuWeather_may <- read_csv("C:/Users/ajcon/Documents/GMU Semesters/Spring 26/Stat 490/Cherry Blossoms/QuetletCSVs/dcPredictedTemps_May_2026.csv") %>%
+  mutate(year = year <- rep(2026, times = 23)) %>%
+  mutate(date = date <- seq(as.Date("2026-05-01"), as.Date("2026-05-23"), "days")) %>%
+  mutate(tmax = (Max - 32)*(5/9)) %>%
+  mutate(tmin = (Min - 32)*(5/9)) %>%
+  mutate(temp = (Avg - 32)*(5/9)) %>%
+  select(year, date, tmin, tmax, temp)
+  
+
+AccuWeather_26_dc <- bind_rows(AccuWeather_feb, AccuWeather_mar, AccuWeather_apr, AccuWeather_may)
+```
+
+
+#Predictions Using Quetelet's Law of Flowering Plants
+```{r}
+#function to get a year's last frost date, in DOY
+doy_last_frost <- function(tmax, doy_max = 100) {
+  dof <- which(tmax[1:doy_max] <= 0)
+  if(length(dof) == 0) 1 else max(dof) + 1
+}
+
+#Function to predict a year's bloom date, in DOY
+doy_prediction <- function(temp, tmax, law)
+  doy_last_frost(tmax) + which.max(cumsum(pmax(temp[(doy_last_frost(tmax) + 1):365], 0, na.rm = TRUE)^2) > law)
+
+#Function to get each year's data (temperature data, bloom_date & bloom_doy, law value, and predicted bloom date) for a given location, station, and range of years. The location and station are also recorded.
+#Law value here is the cumulative temperature (in °C²) from the year's last frost date to it's bloom date.
+quetelet_get_data <- function(loc, ID, startDate, endDate) {
+  Q_temp <- 
+  ghcnd_search(stationid = ID,
+               var = c("tmax", "tmin"),
+               date_min = startDate,
+               date_max = endDate) %>%
+  reduce(left_join) %>%
+  transmute(year = parse_number(format(date, "%Y")), 
+            date, 
+            tmax = tmax / 10, 
+            tmin = tmin / 10, 
+            temp = (tmax + tmin) / 2) %>% 
+  drop_na()
+
+Q_bloom <-
+  cherry %>% filter(location == loc) %>% select(year, bloom_date, bloom_doy) %>%
+  drop_na()
+
+minYear <- max(c(min(Q_temp$year), min(Q_bloom$year)))
+maxYear <- min(c(max(Q_temp$year), max(Q_bloom$year)))
+
+Q_temp <- Q_temp %>% filter(year > minYear & year <= maxYear)
+Q_bloom <- Q_bloom %>% filter(year > minYear & year <= maxYear)
+
+quetelet <- 
+  Q_temp %>% 
+  group_by(year) %>% 
+  nest() %>% 
+  left_join(Q_bloom) %>% 
+  mutate(law = map(data, ~ sum(pmax(.$temp, 0, na.rm = TRUE)[(doy_last_frost(.$tmax) + 1):bloom_doy]^2))) %>% 
+  unnest(law) %>% 
+  ungroup() 
+
+quetelet <- quetelet %>%
+  mutate(pred_bloom_doy = map(data, ~ doy_prediction(.$temp, .$tmax, mean(quetelet$law)))) %>% 
+  unnest(pred_bloom_doy) %>% 
+  ungroup() %>%
+  mutate(location = loc) %>%
+  mutate(stationID = ID)
+}
+```
+
+```{r}
+#get the historic data
+quetelet_dc <- quetelet_get_data("washingtondc", "USW00013743", "1936-09-01", Sys.Date())
+
+#get the data from NOAA up to today
+Q_temp_26_dc <-
+  ghcnd_search(stationid = "USW00013743",
+               var = c("tmax", "tmin"),
+               date_min = as_date("2026-01-01"),
+               date_max = Sys.Date()) %>%
+  reduce(left_join) %>%
+  transmute(year = parse_number(format(date, "%Y")), 
+            date, 
+            tmax = tmax / 10, 
+            tmin = tmin / 10, 
+            temp = (tmax + tmin) / 2) %>% 
+  drop_na()
+
+#get the accuweather predictions from today to may 23
+AccuWeather_26_dc <- bind_rows(AccuWeather_feb, AccuWeather_mar, AccuWeather_apr, AccuWeather_may)
+
+#combine all the temp datasets
+Q_temp_26_dc <- bind_rows(Q_temp_26_dc, AccuWeather_26_dc)
+
+#formatting
+  Q_bloom_26_dc <-
+  cherry %>% filter(location == "washingtondc") %>% select(year, bloom_date, bloom_doy) %>%
+  drop_na()
+  
+#more formatting
+  quetelet_26_dc <- 
+  Q_temp_26_dc %>% 
+  group_by(year) %>% 
+  nest() %>% 
+  left_join(Q_bloom_26_dc) %>% 
+  mutate(law = 4101) %>% 
+  unnest(law) %>% 
+  ungroup() 
+  
+  #predict the bloom date
+  quetelet_26_dc <- quetelet_26_dc %>%
+    mutate(pred_bloom_doy = map(data, ~ doy_prediction(.$temp, .$tmax, 4101))) %>% 
+    unnest(pred_bloom_doy) %>% 
+    ungroup() %>%
+    mutate(location = "washingtondc") %>%
+    mutate(stationID = "USW00013743")
+  
+predicted_bloom_doy_washingtondc_2026 <- quetelet_26_dc$pred_bloom_doy
+predicted_bloom_doy_washingtondc_2026
+
+quetelet_26_dc_all <- bind_rows(quetelet_dc, quetelet_26_dc)
+```
+
+```{r}
+# Libraries
+library(ggplot2)
+library(dplyr)
+#install.packages("patchwork")
+library(patchwork) # To display 2 charts together
+
+
+# Most basic line chart
+p1 <- ggplot(data=quetelet_26_dc_all, aes(x=year, y=pred_bloom_doy, color="pink3")) +
+  geom_line(color="red", size=1) +
+  ggtitle("Predicted Bloom Dates")
+  
+p2 <- ggplot(data=quetelet_26_dc_all, aes(x=year, y=bloom_doy, color="green4")) +
+  geom_line(color="green",size=1) +
+  ggtitle("Actual Bloom Dates")
+
+# Display both charts side by side thanks to the patchwork package
+p1 + p2
+
+coeff <- 1
+
+ggplot(data=quetelet_26_dc_all, aes(x=year)) +
+  
+  geom_line( aes(y=pred_bloom_doy, color="pink3")) + 
+  geom_line( aes(y=bloom_doy / coeff, color="green4")) +
+  
+  scale_y_continuous(
+    
+    # Features of the first axis
+    name = "Predicted Bloom DOYs",
+    
+    # Add a second axis and specify its features
+    sec.axis = sec_axis(~.*coeff, name="Acutal Bloom DOYs")
+  )
+```
+
