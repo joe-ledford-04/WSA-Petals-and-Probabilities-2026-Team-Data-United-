@@ -14,7 +14,7 @@ Our inital model was based on Quetelet's Law of Flowering Plants, with the under
 Our initial model regressed observed bloom dates on cumulative Growing Degree Days (GDD) calculated up to the observed bloom date. However, this created a data leakage problem; GDD accumulation was defined using the bloom date itself. 
 
 
-### Thermal Thershold Phenology Model 
+### Thermal Threshold Phenology Model 
 Interestingly enough, this quite simple heuristic phenology model was our best by far. It capture the two-stage dormancy process the cherry blossoms follow: winter chilling and spring heat accumulation. We use a simulation function to get the chilling requirment and the subsequent growing degree days (GDD) needed in order to bloom. Then we estimate the forcing requirment based on historical averages. However, modeling chill and heat accumulation sequentially is a strict assumption. Modeling this way can overestimate bloom delays from warmer than usual winters, for example. The latest research tells posits heat accumulation can occur during late dormancy, with chill and heat exposure interacting dynamically. 
 ### Parallel Threshold Dormancy Model
 This model follows the latest reasearch by tring to capture the dynamic interaction between chill and heat accumulation across the whole season, so early warmth is captured. Given the trend of climate change and ealier blooming seen in recent years, capturing early season warmth is critcal for an accurate prediciton. It also makes the model more robust and reduced the risk of overfitting the data. 
