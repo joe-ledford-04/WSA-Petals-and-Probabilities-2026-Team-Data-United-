@@ -27,8 +27,3 @@ Interestingly enough, this quite simple heuristic phenology model was our best b
 
 ### Parallel Threshold Dormancy Model
 This model follows the latest reasearch by tring to capture the dynamic interaction between chill and heat accumulation across the whole season, so early warmth is captured. Given the trend of climate change and ealier blooming seen in recent years, capturing early season warmth is critcal for an accurate prediciton. It also makes the model more robust and reduced the risk of overfitting the data. 
-
-
-## City Predictions
-### Washington, DC Prediction
-In Washington, DC, peak bloom occurs when approximately 70% of Yoshino cherry trees reach flowering stage, as defined by the National Park Service. [NPS Website] (https://www.nps.gov/subjects/cherryblossom/bloom-watch.htm) We predict the 
