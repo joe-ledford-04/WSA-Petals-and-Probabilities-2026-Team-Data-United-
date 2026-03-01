@@ -5,12 +5,12 @@ Official repository for the competition: [GMU-Cherry Blossom Competition](https:
 
 Temperatue data for 2025 was also collected through NOAA API, and predicted 2026 temperatures for the spring were taking from AccuWeather. 
 
-__Predictions__:
-* Washington, Dc: April 3rd, DOY=93
-* Kyoto: 
-* Liestal:
-* NYC: 
-* Vancouver:
+## __Predictions__:
+* Washington, Dc: April 3rd, DOY = 93
+* Kyoto: April 2nd, DOY = 92
+* Liestal: April 7th, DOY = 97
+* NYC: March 29th, DOY = 88
+* Vancouver: April 8th, DOY = 98
 
 
 
